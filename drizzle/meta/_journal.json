@@ -8,6 +8,13 @@
       "when": 1792442578007,
       "tag": "0000_useful_thunderbolt",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "6",
+      "when": 1792446470309,
+      "tag": "0001_rapid_emma_frost",
+      "breakpoints": true
     }
   ]
 }

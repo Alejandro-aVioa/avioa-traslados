@@ -1,0 +1,24 @@
+import { and,eq,lt } from 'drizzle-orm';
+import { getDb } from '@/db';
+import { gmailConnections,gmailOAuthStates } from '@/db/schema';
+import { HttpError } from '@/lib/transfers/http';
+import { config,configured,requireConfig,SEND_SCOPE } from './config';
+import { random,hash,encrypt,decrypt } from './crypto';
+export async function connection(ownerId:string){const[row]=await getDb().select().from(gmailConnections).where(eq(gmailConnections.ownerId,ownerId));return row||null;}
+export async function connectionStatus(ownerId:string){const c=await connection(ownerId);return {configured:configured(),connected:c?.status==='connected',email:c?.email||null,needsReconnect:c?.status==='reauthorize'};}
+export async function startOAuth(ownerId:string){const c=requireConfig(),nonce=random(),verifier=random(),db=getDb();await db.delete(gmailOAuthStates).where(lt(gmailOAuthStates.expiresAt,new Date().toISOString()));await db.insert(gmailOAuthStates).values({stateHash:await hash(nonce),ownerId,verifier:await encrypt(verifier,c.encryptionKey,ownerId),expiresAt:new Date(Date.now()+600000).toISOString()});const u=new URL('https://accounts.google.com/o/oauth2/v2/auth');u.search=new URLSearchParams({client_id:c.clientId,redirect_uri:c.redirectUri,response_type:'code',scope:SEND_SCOPE+' openid email',access_type:'offline',prompt:'consent select_account',state:nonce,code_challenge:await hash(verifier),code_challenge_method:'S256'}).toString();return {url:u.toString(),nonce};}
+export async function finishOAuth(ownerId:string,state:string,cookie:string,code:string){
+ const c=requireConfig();if(!state||state!==cookie||!code)throw new HttpError(400,'La autorización de Gmail no es válida. Vuelve a conectar la cuenta.');
+ const[s]=await getDb().delete(gmailOAuthStates).where(and(eq(gmailOAuthStates.stateHash,await hash(state)),eq(gmailOAuthStates.ownerId,ownerId))).returning();
+ if(!s||s.expiresAt<new Date().toISOString())throw new HttpError(400,'La autorización de Gmail venció. Vuelve a conectar la cuenta.');
+ const r=await fetch('https://oauth2.googleapis.com/token',{method:'POST',headers:{'Content-Type':'application/x-www-form-urlencoded'},body:new URLSearchParams({client_id:c.clientId,client_secret:c.clientSecret,redirect_uri:c.redirectUri,grant_type:'authorization_code',code,code_verifier:await decrypt(s.verifier,c.encryptionKey,ownerId)}),signal:AbortSignal.timeout(15000)});
+ const token=await r.json() as {access_token?:string;refresh_token?:string;scope?:string};
+ if(!r.ok||!token.access_token||!token.scope?.split(' ').includes(SEND_SCOPE))throw new HttpError(400,'Google no autorizó el permiso de envío requerido.');
+ const response=await fetch('https://openidconnect.googleapis.com/v1/userinfo',{headers:{Authorization:'Bearer '+token.access_token},signal:AbortSignal.timeout(10000)});
+ const info=await response.json() as {email?:string;email_verified?:boolean};if(!response.ok||!info.email||info.email_verified!==true)throw new HttpError(400,'No fue posible verificar la cuenta remitente.');
+ const prev=await connection(ownerId);const refresh=token.refresh_token?await encrypt(token.refresh_token,c.encryptionKey,ownerId):prev?.email===info.email?prev.refreshToken:null;
+ if(!refresh)throw new HttpError(400,'Google no devolvió acceso sin conexión. Vuelve a autorizar la cuenta.');
+ await getDb().insert(gmailConnections).values({ownerId,email:info.email,refreshToken:refresh,status:'connected',updatedAt:new Date().toISOString()}).onConflictDoUpdate({target:gmailConnections.ownerId,set:{email:info.email,refreshToken:refresh,status:'connected',updatedAt:new Date().toISOString()}});
+}
+export async function accessToken(ownerId:string){const c=requireConfig(),conn=await connection(ownerId);if(!conn||conn.status!=='connected')throw new HttpError(409,'Conecta o vuelve a autorizar Gmail antes de enviar.');const refresh=await decrypt(conn.refreshToken,c.encryptionKey,ownerId);const r=await fetch('https://oauth2.googleapis.com/token',{method:'POST',headers:{'Content-Type':'application/x-www-form-urlencoded'},body:new URLSearchParams({client_id:c.clientId,client_secret:c.clientSecret,refresh_token:refresh,grant_type:'refresh_token'}),signal:AbortSignal.timeout(15000)});const token=await r.json() as {access_token?:string;error?:string};if(!r.ok||!token.access_token){if(token.error==='invalid_grant'){await getDb().update(gmailConnections).set({status:'reauthorize'}).where(eq(gmailConnections.ownerId,ownerId));throw new HttpError(409,'La autorización de Gmail venció o fue revocada. Vuelve a conectar la cuenta.');}throw new HttpError(502,'No fue posible obtener autorización de Gmail. Intenta más tarde.');}return {token:token.access_token,email:conn.email};}
+export async function disconnect(ownerId:string){await getDb().batch([getDb().delete(gmailConnections).where(eq(gmailConnections.ownerId,ownerId)),getDb().delete(gmailOAuthStates).where(eq(gmailOAuthStates.ownerId,ownerId))]);}

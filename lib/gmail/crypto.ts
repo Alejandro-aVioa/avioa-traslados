@@ -1,0 +1,7 @@
+export function base64url(bytes:Uint8Array){let s='';for(const b of bytes)s+=String.fromCharCode(b);return btoa(s).replace(/\+/g,'-').replace(/\//g,'_').replace(/=+$/,'');}
+export function from64(s:string){const v=s.replace(/-/g,'+').replace(/_/g,'/');return Uint8Array.from(atob(v),c=>c.charCodeAt(0));}
+export const random=()=>base64url(crypto.getRandomValues(new Uint8Array(32)));
+export async function hash(s:string){return base64url(new Uint8Array(await crypto.subtle.digest('SHA-256',new TextEncoder().encode(s))));}
+async function key(secret:string){const raw=from64(secret);if(raw.length!==32)throw new Error('Invalid Gmail encryption key');return crypto.subtle.importKey('raw',raw,'AES-GCM',false,['encrypt','decrypt']);}
+export async function encrypt(text:string,secret:string,owner:string){const iv=crypto.getRandomValues(new Uint8Array(12));const ciphertext=await crypto.subtle.encrypt({name:'AES-GCM',iv,additionalData:new TextEncoder().encode(owner)},await key(secret),new TextEncoder().encode(text));return 'v1.'+base64url(iv)+'.'+base64url(new Uint8Array(ciphertext));}
+export async function decrypt(text:string,secret:string,owner:string){const[v,iv,data]=text.split('.');if(v!=='v1'||!iv||!data)throw new Error('Invalid ciphertext');return new TextDecoder().decode(await crypto.subtle.decrypt({name:'AES-GCM',iv:from64(iv),additionalData:new TextEncoder().encode(owner)},await key(secret),from64(data)));}
