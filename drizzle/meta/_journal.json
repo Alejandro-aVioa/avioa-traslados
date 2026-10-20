@@ -15,6 +15,13 @@
       "when": 1792446470309,
       "tag": "0001_rapid_emma_frost",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "6",
+      "when": 1792507993506,
+      "tag": "0002_free_meltdown",
+      "breakpoints": true
     }
   ]
 }

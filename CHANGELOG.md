@@ -1,5 +1,11 @@
 # Historial de versiones
 
+## 0.2.1 — 20 de octubre de 2026
+
+- Prueba de correo separada de las reservas, con autorización temporal para un destinatario y contenido explícitos.
+- Registro de resultados de prueba y prevención de ejecuciones duplicadas.
+- Endpoint de diagnóstico deshabilitado cuando no existe una autorización vigente.
+
 ## 0.2.0 — 19 de octubre de 2026
 
 - Conexión OAuth por cuenta para Gmail API con permiso de envío.

@@ -13,3 +13,5 @@ declare namespace Cloudflare {
   GMAIL_REDIRECT_URI?: string;
  }
 }
+
+declare namespace Cloudflare { interface Env { GMAIL_TEST_APPROVAL?: string; } }

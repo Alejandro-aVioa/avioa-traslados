@@ -54,3 +54,9 @@ GET /api/gmail/connection devuelve estado de configuración y correo conectado, 
 https://developers.google.com/identity/protocols/oauth2/web-server
 https://developers.google.com/workspace/gmail/api/guides/sending
 https://developers.google.com/workspace/gmail/api/auth/scopes
+
+## Prueba operativa autorizada
+
+POST /api/gmail/test permite una prueba de diagnóstico de un solo uso y está deshabilitado por defecto. Requiere el acceso de servicio de la plataforma al Site privado y una autorización adicional de servidor GMAIL_TEST_APPROVAL. Esa autorización fija propietario, cuenta remitente, destinatario, asunto, texto, UUID e intervalo máximo de 15 minutos y almacena solo el hash del token adicional que debe presentar el llamador. El endpoint no acepta un cuerpo para evitar cambios en el destinatario o mensaje. El token de servicio y la autorización nunca se guardan en GitHub.
+
+La autorización debe configurarse exclusivamente después de que el propietario indique el destinatario y contenido de la prueba. gmail_test_deliveries registra el resultado y evita repetir la operación con el mismo UUID, incluso ante solicitudes simultáneas. Los resultados inciertos requieren comprobar Enviados antes de otra prueba; no se reintentan. Al terminar se retira GMAIL_TEST_APPROVAL y se vuelve a desplegar para deshabilitar el diagnóstico. Este mecanismo no reemplaza el envío de solicitudes por la interfaz autenticada.

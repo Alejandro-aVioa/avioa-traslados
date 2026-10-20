@@ -17,8 +17,8 @@ class Statement{
 globalThis.__testEnv={DB:{prepare:s=>new Statement(s),batch:async statements=>{db.exec('BEGIN');try{const results=[];for(const s of statements)results.push(await s.all());db.exec('COMMIT');return results;}catch(e){db.exec('ROLLBACK');throw e;}}}};
 globalThis.__testUser={userId:'account-a',email:'test@example.invalid'};
 const plugin={name:'runtime-test',setup(b){b.onResolve({filter:/^cloudflare:workers$/},()=>({path:'workers',namespace:'test'}));b.onResolve({filter:/^@\/app\/chatgpt-auth$/},()=>({path:'auth',namespace:'test'}));b.onLoad({filter:/.*/,namespace:'test'},args=>({contents:args.path==='workers'?'export const env=globalThis.__testEnv':'export async function getChatGPTUser(){return globalThis.__testUser}',loader:'js'}));}};
-for(const [name,path]of Object.entries({list:'app/api/transfers/route.ts',detail:'app/api/transfers/[id]/route.ts',providers:'app/api/providers/route.ts',domain:'lib/transfers/domain.ts',connect:'app/api/gmail/connect/route.ts',callback:'app/api/gmail/callback/route.ts',connection:'app/api/gmail/connection/route.ts',email:'app/api/transfers/[id]/email/route.ts',crypt:'lib/gmail/crypto.ts',mime:'lib/gmail/mime.ts'}))await build({entryPoints:[path],outfile:'.sites-runtime/test/'+name+'.mjs',bundle:true,platform:'node',format:'esm',plugins:[plugin],logLevel:'silent'});
-const routes={};for(const name of ['list','detail','providers','domain','connect','callback','connection','email','crypt','mime'])routes[name]=await import('../.sites-runtime/test/'+name+'.mjs');
+for(const [name,path]of Object.entries({list:'app/api/transfers/route.ts',detail:'app/api/transfers/[id]/route.ts',providers:'app/api/providers/route.ts',domain:'lib/transfers/domain.ts',connect:'app/api/gmail/connect/route.ts',callback:'app/api/gmail/callback/route.ts',connection:'app/api/gmail/connection/route.ts',email:'app/api/transfers/[id]/email/route.ts',crypt:'lib/gmail/crypto.ts',mime:'lib/gmail/mime.ts',smoke:'app/api/gmail/test/route.ts'}))await build({entryPoints:[path],outfile:'.sites-runtime/test/'+name+'.mjs',bundle:true,platform:'node',format:'esm',plugins:[plugin],logLevel:'silent'});
+const routes={};for(const name of ['list','detail','providers','domain','connect','callback','connection','email','crypt','mime','smoke'])routes[name]=await import('../.sites-runtime/test/'+name+'.mjs');
 const req=(method,data,path='/api/transfers')=>new Request('https://example.test'+path,{method,headers:{origin:'https://example.test','content-type':'application/json'},body:JSON.stringify(data)});
 const ctx=id=>({params:Promise.resolve({id})});
 const input={reservation:'GMAIL-001',holder:'Pasajero de prueba',phone:'+573001234567',advisor:'Asesor de prueba',destination:'Cartagena',hotel:'Hotel de prueba',passengers:2,infants:0,arrivalAirline:'Avianca',arrivalFlight:'AV123',arrivalDate:'2026-12-01',arrivalTime:'12:00',returnAirline:'LATAM',returnFlight:'LA123',returnDate:'2026-12-05',returnTime:'15:00',includesTours:true,tourNotes:'Tour a Barú',notes:'Atención especial'};
@@ -31,8 +31,8 @@ globalThis.fetch=async(url,init)=>{
  if(url==='https://openidconnect.googleapis.com/v1/userinfo')return Response.json({email:'sender@example.invalid',email_verified:true});
  if(url==='https://gmail.googleapis.com/gmail/v1/users/me/messages/send'){
   gmailCalls++;assert.equal(init.headers.Authorization,'Bearer TEST_ACCESS');
-  const mime=new TextDecoder().decode(routes.crypt.from64(JSON.parse(init.body).raw));assert.match(mime,/From: sender@example.invalid/);assert.match(mime,/To: transturismocartagena@gmail.com/);assert.match(mime,/MIME-Version: 1.0/);
-  const content=mime.split('\r\n\r\n')[1].replace(/\r\n/g,'');assert.match(Buffer.from(content,'base64').toString('utf8'),/Tour a Barú/);
+  const mime=new TextDecoder().decode(routes.crypt.from64(JSON.parse(init.body).raw));assert.match(mime,/From: sender@example.invalid/);if(!mime.includes('To: smoke@example.invalid'))assert.match(mime,/To: transturismocartagena@gmail.com/);assert.match(mime,/MIME-Version: 1.0/);
+  const content=mime.split('\r\n\r\n')[1].replace(/\r\n/g,'');assert.match(Buffer.from(content,'base64').toString('utf8'),mime.includes('To: smoke@example.invalid')?/Esto es una prueba/:/Tour a Barú/);
   if(sendMode==='network')throw new Error('Simulated timeout');
   if(sendMode==='reject')return Response.json({error:{message:'rejected'}},{status:400});
   return Response.json({id:'gmail-message-'+gmailCalls,labelIds:['SENT']});
@@ -61,5 +61,23 @@ globalThis.__testUser=null;r=await routes.email.POST(req('POST',{version:p.versi
 globalThis.__testUser={userId:'account-a',email:'test@example.invalid'};
 assert.throws(()=>routes.mime.mimeRaw('sender@example.invalid',['test@example.invalid'],'Subject\r\nBcc: attacker@example.invalid','body'));
 assert.throws(()=>routes.mime.recipients('test@example.invalid\r\nBcc: attacker@example.invalid'));
+
+const testProof='test-only-proof-with-at-least-32-characters';
+const smokeReq=(proof=testProof,body)=>new Request('https://example.test/api/gmail/test',{method:'POST',headers:{'x-avioa-test-approval':proof},body});
+r=await routes.smoke.POST(smokeReq());assert.equal(r.status,403);
+const grant={id:crypto.randomUUID(),ownerId:'account-a',sender:'sender@example.invalid',to:'smoke@example.invalid',subject:'Prueba de conexión · aVioa Traslados',text:'Esto es una prueba',tokenHash:await routes.crypt.hash(testProof),issuedAt:Date.now(),expiresAt:Date.now()+600000};
+globalThis.__testEnv.GMAIL_TEST_APPROVAL=JSON.stringify(grant);
+r=await routes.smoke.POST(smokeReq('wrong-proof'));assert.equal(r.status,403);
+r=await routes.smoke.POST(smokeReq(testProof,'{"to":"attacker@example.invalid"}'));assert.equal(r.status,400);
+const beforeSmoke=gmailCalls;
+globalThis.__testUser=null;
+r=await routes.smoke.POST(smokeReq());assert.equal(r.status,200);assert.equal((await r.json()).data.status,'sent');assert.equal(gmailCalls,beforeSmoke+1);
+r=await routes.smoke.POST(smokeReq());assert.equal((await r.json()).data.alreadyProcessed,true);assert.equal(gmailCalls,beforeSmoke+1);
+globalThis.__testEnv.GMAIL_TEST_APPROVAL=JSON.stringify({...grant,issuedAt:Date.now()-10000,expiresAt:Date.now()-1000});
+r=await routes.smoke.POST(smokeReq());assert.equal(r.status,403);assert.equal(gmailCalls,beforeSmoke+1);
+delete globalThis.__testEnv.GMAIL_TEST_APPROVAL;
+r=await routes.smoke.POST(smokeReq());assert.equal(r.status,403);
+globalThis.__testUser={userId:'account-a',email:'test@example.invalid'};
+
 r=await routes.connection.DELETE(req('DELETE',{}));assert.equal(r.status,200);r=await routes.connection.GET();assert.equal((await r.json()).data.connected,false);
-console.log('PASS: OAuth state/cookie/PKCE, encrypted owner-bound tokens, minimal scopes, MIME Unicode, isolated accounts, concurrent send protection, no duplicate sends, explicit retry, uncertain outcome blocking, changed provider detection and disconnect. All Google calls simulated.');db.close();
+console.log('PASS: OAuth state/cookie/PKCE, encrypted owner-bound tokens, minimal scopes, MIME Unicode, isolated accounts, concurrent send protection, no duplicate sends, explicit retry, uncertain outcome blocking, changed provider detection and disconnect. Scoped one-use diagnostic approval and expiry verified. All Google calls simulated.');db.close();
