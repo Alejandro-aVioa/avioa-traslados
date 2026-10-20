@@ -15,3 +15,5 @@ declare namespace Cloudflare {
 }
 
 declare namespace Cloudflare { interface Env { GMAIL_TEST_APPROVAL?: string; } }
+
+declare namespace Cloudflare { interface Env { EVOLUTION_BASE_URL?: string; EVOLUTION_INSTANCE?: string; EVOLUTION_API_KEY?: string; } }

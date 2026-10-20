@@ -1,5 +1,12 @@
 # Historial de versiones
 
+## 0.3.0 — 20 de octubre de 2026
+
+- Conexión de Evolution API con secretos de servidor y comprobación de estado.
+- Envío manual de WhatsApp según proveedor, con vista previa y confirmación.
+- Historial persistente, prevención de duplicados y tratamiento de resultados inciertos.
+- Pruebas simuladas de conexión, autorización, destinatarios y concurrencia.
+
 ## 0.2.1 — 20 de octubre de 2026
 
 - Prueba de correo separada de las reservas, con autorización temporal para un destinatario y contenido explícitos.

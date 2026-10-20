@@ -11,7 +11,7 @@ Módulo privado para registrar y gestionar solicitudes de traslados. Interfaz Re
 - Mensaje de proveedor para copiar y descarga del JSON del formulario anterior.
 - Prevención de reservas duplicadas por cuenta y control de edición concurrente con version.
 
-La base inicia sin solicitudes. Los proveedores iniciales son configuración, no registros de viajes ficticios. Cambiar un estado no significa que se haya enviado una comunicación. El envío de correo por Gmail requiere configurar OAuth y autorizar la cuenta. Evolution API y n8n siguen pendientes de conexión. No se incorporan credenciales del archivo original.
+La base inicia sin solicitudes. Los proveedores iniciales son configuración, no registros de viajes ficticios. Cambiar un estado no significa que se haya enviado una comunicación. El envío de correo por Gmail requiere configurar OAuth y autorizar la cuenta. Evolution API incorpora envío manual de WhatsApp; n8n permanece independiente. No se incorporan credenciales del archivo original.
 
 ## Acceso
 
@@ -55,3 +55,9 @@ Desde una solicitud, Mensaje al proveedor permite revisar remitente, destinatari
     node tests/gmail.mjs
 
 Las pruebas simulan Google y no envían correos. La integración real requiere configurar la aplicación OAuth, autorizar el buzón y realizar una prueba explícita.
+
+## WhatsApp por Evolution API
+
+Desde la versión 0.3.0, Conexiones comprueba la instancia y las solicitudes con proveedor WhatsApp permiten revisar y confirmar el envío. Los contactos se obtienen en servidor, sin enviar claves al navegador. Hay historial, protección de duplicados por versión, reintento explícito de rechazos y bloqueo de resultados inciertos. Aceptado por Evolution no equivale a entregado o leído. Ver docs/EVOLUTION.md.
+
+    node tests/evolution.mjs

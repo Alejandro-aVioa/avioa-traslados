@@ -57,8 +57,12 @@ Verificar cantidades, campos, historial y permisos. Coordinar el cambio de escri
 
 ## Fuera de esta primera versión
 
-Envío automático, conexión de Evolution API, importación de Google Sheets, sincronización con n8n, base PostgreSQL de producción, permisos de equipo de Avioa y acceso público. OAuth y envío manual con Gmail API están implementados desde la versión 0.2.0; requieren configuración y autorización de la cuenta. La versión actual es funcional para registro y seguimiento privado y no requiere esas conexiones para probarse.
+Envío automático, importación de Google Sheets, sincronización con n8n, base PostgreSQL de producción, permisos de equipo de Avioa y acceso público. OAuth y envío manual con Gmail API están implementados desde la versión 0.2.0; requieren configuración y autorización de la cuenta. La versión actual es funcional para registro y seguimiento privado y no requiere esas conexiones para probarse.
 
 ## Integración del correo
 
 Los servicios de Gmail están separados en lib/gmail y sus componentes en GmailConnection y GmailSend. Al trasladarlos a NestJS, reemplazar D1 por Prisma y los secretos de Sites por los del backend. Conservar estado OAuth de un solo uso, PKCE, cifrado de refresh tokens, ámbito de propietario y unicidad del envío por versión. No reutilizar IDs de ChatGPT como usuarios Avioa. Revisar si se adoptará una cuenta compartida de reservas o una cuenta por asesor.
+
+## Integración de WhatsApp
+
+Desde 0.3.0, Evolution API se implementa en lib/evolution con configuración de servidor y registros en whatsapp_deliveries. La interfaz obtiene el estado real y envía únicamente después de revisión. Trasladar los servicios a NestJS y las tablas a Prisma conservando autorización y unicidad por versión. Ver docs/EVOLUTION.md para estados y limitaciones.
